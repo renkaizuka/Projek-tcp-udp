@@ -1,0 +1,10 @@
+# Abaikan file hasil build Arduino
+*. hex
+*. elf
+*. bin
+# Abaikan file virtual environment Python
+venv/
+__pycache__ /
+# Abaikan file sistem operasi
+. DS_Store
+Thumbs.db
