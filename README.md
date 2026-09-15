@@ -38,5 +38,3 @@ Biar tidak kebanjiran trafik lain, isi kolom filter di layar awal sebelum klik s
 ### 6. Simpan hasilnya
 - **File → Save As** → simpan sebagai `.pcapng` kalau dosen minta file capture asli (biar konsisten dengan file-file di folder `wireshark` kamu yang lain).
 - Atau langsung screenshot jendela Wireshark yang menunjukkan paket-paket relevan untuk dilampirkan ke laporan.
-
-Kalau mau, saya bisa bantu susun ini jadi laporan Word (seperti format `Tgs1_Fachry Anwar Rafi_573150.docx` yang sudah ada), lengkap dengan langkah-langkah dan tempat kosong untuk kamu tempel screenshot capture-nya — tinggal bilang.
