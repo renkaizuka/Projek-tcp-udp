@@ -1,40 +1,66 @@
-## Panduan Sniffing dengan Wireshark
+# Hybrid Socket: Sistem Distribusi Pesan & File (TCP + UDP)
 
-Karena kamu barusan menjalankan `webserver.py` (TCP port 6789) dan `UDPPingerClient.py`/`UDPPingerServer.py` (UDP port 12000) via `127.0.0.1`, ada satu hal penting yang perlu diperhatikan dulu: **trafik ke localhost tidak lewat network adapter biasa**, jadi Wireshark standar tidak akan menangkapnya kecuali kamu aktifkan adapter loopback. Berikut langkah lengkapnya untuk Windows.
+Tugas Jaringan Komputer Lanjut (S2 Ilmu Komputer). Referensi: Kurose & Ross, *Computer Networking: A Top-Down Approach* 9th Ed., Section 2.6.
 
-### 1. Pastikan Wireshark + Npcap terpasang
-Kalau belum ada, download dari wireshark.org dan install (installer-nya otomatis menyertakan Npcap, driver capture-nya). Saat instalasi Npcap, centang opsi **"Support raw 802.11 traffic..."** tidak wajib, tapi pastikan **"Install Npcap in WinPcap API-compatible Mode"** dicentang (default).
+## Struktur
 
-### 2. Pilih interface yang tepat
-Buka Wireshark, lihat daftar interface:
-- Kalau server & client kamu jalan di komputer yang **sama** lewat `127.0.0.1` (seperti testing yang barusan) → pilih interface **"Adapter for loopback traffic capture"** (kadang muncul sebagai `Npcap Loopback Adapter`). Tanpa ini, capture-mu akan kosong walaupun program jalan normal.
-- Kalau server & client dijalankan di **dua host berbeda** di jaringan yang sama (sesuai instruksi tugas Web Server yang minta test dari host lain) → pilih interface Wi-Fi/Ethernet aktif kamu, trafiknya akan otomatis muncul karena benar-benar lewat NIC.
+| File | Fungsi |
+|------|--------|
+| `protocol.py` | Protokol aplikasi: framing dengan header fixed-length 5 byte (1 byte TYPE + 4 byte LENGTH) |
+| `TCPServer.py` | Server TCP multi-client (1 thread per client), chat broadcast & penyimpanan file |
+| `TCPClient.py` | Client CLI: chat, unggah/unduh file, uji burst |
+| `UDPServer.py` | Server heartbeat UDP (1 soket), dengan opsi simulasi packet loss & delay |
+| `UDPClient.py` | Pinger: 10 ping, timeout 1 detik, RTT min/avg/max, EstimatedRTT, packet loss |
+| `tcp_raw_demo.py` | Demonstrasi masalah message boundary TCP tanpa framing |
 
-Tips: kalau ragu mau capture localhost vs LAN, cara paling gampang untuk lab ini justru **jalankan server pakai IP LAN asli** (bukan `127.0.0.1`) dan akses dari device lain — jadi kamu langsung capture di interface normal tanpa perlu ribet soal loopback adapter.
+## Format Frame TCP
 
-### 3. Pasang capture filter sebelum mulai (opsional tapi disarankan)
-Biar tidak kebanjiran trafik lain, isi kolom filter di layar awal sebelum klik start:
-- Untuk Web Server: `port 6789` atau `tcp port 6789`
-- Untuk UDP Pinger: `port 12000` atau `udp port 12000`
+```
++--------+----------------------+-----------------+
+| TYPE 1B| LENGTH 4B big-endian | PAYLOAD (LENGTH)|
++--------+----------------------+-----------------+
+TYPE: 1=TEXT 2=FILE 3=CMD 4=INFO 5=ERROR
+```
 
-### 4. Mulai capture, lalu jalankan program
-- Klik ikon capture (start) di Wireshark.
-- Untuk Web Server: jalankan `webserver.py`, lalu akses `http://<ip-server>:6789/HelloWorld.html` dari browser (atau `curl`).
-- Untuk UDP Pinger: jalankan `UDPPingerServer.py`, lalu `UDPPingerClient.py`.
-- Biarkan capture berjalan sampai selesai request/10 ping, baru klik stop (kotak merah).
+## Kebutuhan
 
-### 5. Analisa hasil capture
-**Web Server (TCP/HTTP):**
-- Kalau belum otomatis terdeteksi sebagai HTTP, gunakan display filter `tcp.port == 6789` atau `http`.
-- Klik kanan salah satu paket → **Follow → TCP Stream** untuk lihat full percakapan: 3-way handshake (SYN, SYN-ACK, ACK), request `GET /HelloWorld.html HTTP/1.1`, lalu response `HTTP/1.1 200 OK` beserta isi HTML-nya. Ini bagus dijadikan bukti screenshot untuk laporan tugas.
-- Coba juga request file yang tidak ada, filter ulang, lihat response `404 Not Found`.
+Python 3.8+ saja, tanpa library tambahan.
 
-**UDP Pinger:**
-- Display filter `udp.port == 12000`.
-- Klik satu paket dari client → lihat di panel bawah bagian **Data** untuk payload `Ping <seq> <time>`.
-- Cari paket balasan dari server (isinya huruf kapital semua, misal `PING 2 ...`) — bandingkan timestamp-nya untuk verifikasi RTT.
-- Kalau ada ping yang timeout (hilang di client), kamu akan lihat di capture hanya ada paket request dari client tanpa paket balasan dari server — ini bukti nyata dari simulasi packet loss 30-40% di kode server.
+## Cara Menjalankan
 
-### 6. Simpan hasilnya
-- **File → Save As** → simpan sebagai `.pcapng` kalau dosen minta file capture asli (biar konsisten dengan file-file di folder `wireshark` kamu yang lain).
-- Atau langsung screenshot jendela Wireshark yang menunjukkan paket-paket relevan untuk dilampirkan ke laporan.
+Buka beberapa terminal di folder repositori.
+
+```bash
+# Terminal 1 - server TCP
+python TCPServer.py --port 12000
+
+# Terminal 2 - server UDP (opsional: simulasi 30% loss)
+python UDPServer.py --port 12001 --loss 0.3
+
+# Terminal 3, 4, 5 - beberapa client TCP
+python TCPClient.py --host 127.0.0.1 --port 12000
+
+# Terminal lain - UDP pinger
+python UDPClient.py --host 127.0.0.1 --port 12001
+```
+
+Perintah pada client TCP: `/nick <nama>`, `/users`, `/send <path>`, `/list`, `/get <nama>`, `/burst`, `/quit`, atau ketik teks biasa untuk chat.
+
+## Skenario Pengujian
+
+```bash
+# Uji framing: 3 pesan tanpa delay diterima sebagai 3 pesan terpisah
+python TCPClient.py --demo-burst
+
+# Bandingkan dengan TCP tanpa framing (pesan tergabung)
+python tcp_raw_demo.py server      # terminal A
+python tcp_raw_demo.py client      # terminal B
+
+# Balasan terlambat (uji pembuangan paket stale)
+python UDPServer.py --loss 0.2 --delay 1.5
+
+# Bind eksplisit port client (jalankan 2 kali bersamaan untuk melihat konflik)
+python UDPClient.py --bind-port 5432 --count 20
+```
+
+Jika server berada di komputer lain, ganti `--host` dengan IP server dan izinkan port 12000/TCP serta 12001/UDP di firewall.

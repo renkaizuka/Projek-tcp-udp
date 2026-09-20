@@ -8,3 +8,5 @@ __pycache__ /
 # Abaikan file sistem operasi
 . DS_Store
 Thumbs.db
+CLAUDE.md
+PANDUAN_LAPORAN.md
